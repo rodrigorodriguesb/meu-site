@@ -1,0 +1,91 @@
+<!doctype html>
+<!-- DIAGNOSTIC page v2: distinguishes "loaded inside the app WebView" vs "loaded in Chrome",
+     and probes multiple possible JS-bridge names over 15 s.
+     Host at https://rodrigorodriguesb.github.io/meu-site/diag.html -->
+<html lang="pt"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>env diag</title>
+<style>
+ body{font:13px/1.45 ui-monospace,Menlo,monospace;background:#0f1115;color:#c9d1d9;margin:0;padding:14px}
+ h1{font:16px system-ui;color:#fff;margin:0 0 10px}
+ .verdict{font-size:15px;font-weight:800;padding:10px;border-radius:8px;margin-bottom:12px;background:#21262d}
+ .ok{color:#7ee787}.bad{color:#ff7b72}.mid{color:#e3b341}
+ .row{padding:4px 0;border-bottom:1px dashed #21262d;word-break:break-all}
+ .k{color:#8b949e}
+ pre{white-space:pre-wrap;word-break:break-all;font-size:12px;color:#8b949e;max-height:40vh;overflow:auto}
+</style></head><body>
+<h1>environment diagnostic</h1>
+<div class="verdict" id="verdict">analisando…</div>
+<div class="row"><span class="k">href: </span><span id="href"></span></div>
+<div class="row"><span class="k">referrer: </span><span id="ref"></span></div>
+<div class="row"><span class="k">userAgent: </span><span id="ua"></span></div>
+<div class="row"><span class="k">window.chrome: </span><span id="wc"></span></div>
+<div class="row"><span class="k">window props (android/bridge/native/picpay): </span><span id="props"></span></div>
+<div class="row"><span class="k">bridge candidates: </span><span id="cand"></span></div>
+<div class="row"><span class="k">TOKEN: </span><span id="tok">(waiting…)</span></div>
+<pre id="log"></pre>
+<script>
+var logEl=document.getElementById('log'), n=0;
+function L(m,c){var d=document.createElement('div'); if(c)d.className=c; d.textContent=(++n)+'. '+m; logEl.appendChild(d);}
+
+var ua = navigator.userAgent;
+var isWV = /;\s*wv\)/.test(ua);            // Android WebView marker
+var hasChrome = typeof window.chrome !== 'undefined';
+document.getElementById('href').textContent = location.href;
+document.getElementById('ref').textContent  = document.referrer || '(none)';
+document.getElementById('ua').textContent   = ua;
+document.getElementById('wc').textContent   = (typeof window.chrome);
+L('PAGE_LOADED '+location.href);
+L('referrer='+(document.referrer||'(none)'));
+
+var v=document.getElementById('verdict');
+if (isWV){ v.textContent='ENV: WebView Android (marcador "; wv)") — provavelmente DENTRO do app'; v.className='verdict ok'; }
+else if (hasChrome){ v.textContent='ENV: browser Chrome (SEM marcador "; wv)") — provavelmente FORA do app'; v.className='verdict bad'; }
+else { v.textContent='ENV: indeterminado (sem marcador wv, sem window.chrome)'; v.className='verdict mid'; }
+
+// 1) enumerate window props that look like a bridge
+var susp=[];
+try{ Object.getOwnPropertyNames(window).forEach(function(p){ if(/android|bridge|native|picpay|webview|jsbridge/i.test(p)) susp.push(p); }); }catch(e){}
+document.getElementById('props').textContent = susp.length?susp.join(', '):'(nenhuma)';
+if (susp.length) L('suspicious window props: '+susp.join(','),'mid');
+
+// 2) probe candidate bridge names
+var names=['Android','JavascriptInterface','JSBridge','NativeBridge','AppBridge','PicPay','picpay','AndroidBridge','AndroidApp','app','NativeInterface','JSInterface','bridge'];
+function probe(){
+  var found=[];
+  names.forEach(function(nm){
+    try{
+      var o=window[nm];
+      if(typeof o!=='undefined' && o!==null){
+        var keys=[]; try{keys=Object.keys(o).slice(0,12);}catch(e){}
+        found.push(nm+'('+typeof o+(keys.length?':'+keys.join('|'):'')+')');
+      }
+    }catch(e){}
+  });
+  document.getElementById('cand').textContent = found.length?found.join('  ;  '):'(nenhum bridge encontrado)';
+  return found;
+}
+// 3) token callbacks
+['setToken','setInstallationId','setConsumerId','setSessionId'].forEach(function(k){
+  window[k]=function(x){ document.getElementById('tok').textContent=x; L('CALLBACK '+k+' = '+x,'ok'); };
+});
+function tryToken(){
+  try{ if(window.Android && typeof window.Android.getToken==='function'){ L('Android.getToken() chamado'); window.Android.getToken(); } }catch(e){ L('getToken err: '+e,'bad'); }
+}
+
+var last='';
+function tick(){
+  var f=probe().join('|');
+  if(f!==last){ last=f; L('bridge scan: '+(f||'none'), f?'ok':'bad'); }
+  // deep probe generic getters on any found object
+  names.forEach(function(nm){
+    try{ var o=window[nm]; if(o && typeof o==='object'){
+      ['getToken','getInstallationId','getSessionId'].forEach(function(m){
+        try{ if(typeof o[m]==='function'){ L(nm+'.'+m+'()'); o[m](); } }catch(e){}
+      });
+    }}catch(e){}
+  });
+}
+tick(); setTimeout(tick,600); setTimeout(tick,1500); setTimeout(tick,3000); setTimeout(tick,6000); setTimeout(tick,10000); setTimeout(tick,15000);
+setTimeout(function(){ if(document.getElementById('tok').textContent.indexOf('waiting')===0) L('sem token após 15s','mid'); },16000);
+</script></body></html>
